@@ -186,6 +186,7 @@ export default class Runtime {
   private _moduleImplementation?: typeof nativeModule.Module;
   private readonly jestObjectCaches: Map<string, Jest>;
   private jestGlobals?: JestGlobals;
+  private _resolvedMockPaths: Map<string, string>;
 
   constructor(
     config: Config.ProjectConfig,
@@ -223,6 +224,7 @@ export default class Runtime {
     this._sourceMapRegistry = new Map();
     this._fileTransforms = new Map();
     this._virtualMocks = new Map();
+    this._resolvedMockPaths = new Map();
     this.jestObjectCaches = new Map();
 
     this._mockMetaDataCache = new Map();
@@ -941,12 +943,16 @@ export default class Runtime {
     from: string,
     moduleName: string,
     mockFactory: () => unknown,
-    options?: {virtual?: boolean},
+    options?: {virtual?: boolean, resolve?: string},
   ): void {
     if (options?.virtual) {
       const mockPath = this._resolver.getModulePath(from, moduleName);
 
       this._virtualMocks.set(mockPath, true);
+      if (options?.resolve) {
+        const resolvePath = this._resolver.getModulePath(from, options.resolve);
+        this._resolvedMockPaths.set(mockPath, resolvePath);
+      }
     }
     const moduleID = this._resolver.getModuleID(
       this._virtualMocks,
@@ -983,6 +989,7 @@ export default class Runtime {
     this._explicitShouldMock.clear();
     this._transitiveShouldMock.clear();
     this._virtualMocks.clear();
+    this._resolvedMockPaths.clear()
     this._cacheFS.clear();
     this._unmockList = undefined;
 
@@ -1010,7 +1017,9 @@ export default class Runtime {
         'The first argument to require.resolve must be a string. Received null or undefined.',
       );
     }
-
+    // if (this._virtualMocks.get(moduleName)) {
+    //   return this._resolvedMockPaths.get(moduleName);
+    // }
     const {paths} = options;
 
     if (paths) {
